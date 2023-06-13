@@ -1,4 +1,5 @@
-import numpy as np
+import pandas as pd
+import os
 from sklearn.model_selection import train_test_split
 
 # Fungsi keanggotaan untuk indikator nilai
@@ -58,42 +59,29 @@ def defuzzification(rules):
 def compute_accuracy(predicted, actual):
     return np.sum(predicted == actual) / len(actual)
 
-# Generate dataset
-np.random.seed(42)
-nilai_dataset = np.random.uniform(2.0, 4.1, size=1000)
-sks_dataset = np.random.randint(10, 25, size=1000)
-semester_dataset = np.random.randint(1, 10, size=1000)
-lulus_dataset = []
+# Membaca file Excel
+data = pd.read_excel(os.path.join(os.path.dirname(__file__),'data_lulus.xlsx'))
 
-# Membangun dataset lulus berdasarkan indikator-indikator
-for i in range(len(nilai_dataset)):
-    nilai_input = nilai(nilai_dataset[i])
-    sks_input = sks(sks_dataset[i])
-    semester_input = semester(semester_dataset[i])
-    
-    inference_result = sugeno_inference(nilai_input, sks_input, semester_input)
-    defuzzified_value = defuzzification(inference_result)
-    
-    if defuzzified_value >= 50:
-        lulus_dataset.append(1)  # Lulus
-    else:
-        lulus_dataset.append(0)  # Tidak lulus
+# Memperoleh kolom yang diperlukan
+total_sks = data['Total SKS']
+nilai_ip = data['Nilai IP']
+semester = data['Semester']
+kemungkinan_lulus = data['Kemungkinan Lulus']
 
-lulus_dataset = np.array(lulus_dataset)
+# Konversi data keanggotaan fuzzy
+nilai_fuzzy = nilai(nilai_ip)
+sks_fuzzy = sks(total_sks)
+semester_fuzzy = semester(semester)
 
 # Split dataset menjadi training set dan test set
-nilai_train, nilai_test, lulus_train, lulus_test = train_test_split(nilai_dataset, lulus_dataset, test_size=0.2, random_state=42)
-sks_train, sks_test, _, _ = train_test_split(sks_dataset, lulus_dataset, test_size=0.2, random_state=42)
-semester_train, semester_test, _, _ = train_test_split(semester_dataset, lulus_dataset, test_size=0.2, random_state=42)
+nilai_train, nilai_test, lulus_train, lulus_test = train_test_split(nilai_fuzzy, kemungkinan_lulus, test_size=0.2, random_state=42)
+sks_train, sks_test, _, _ = train_test_split(sks_fuzzy, kemungkinan_lulus, test_size=0.2, random_state=42)
+semester_train, semester_test, _, _ = train_test_split(semester_fuzzy, kemungkinan_lulus, test_size=0.2, random_state=42)
 
 # Melakukan prediksi pada dataset uji
 predictions = []
 for i in range(len(nilai_test)):
-    nilai_input = nilai(nilai_test[i])
-    sks_input = sks(sks_test[i])
-    semester_input = semester(semester_test[i])
-    
-    inference_result = sugeno_inference(nilai_input, sks_input, semester_input)
+    inference_result = sugeno_inference(nilai_test[i], sks_test[i], semester_test[i])
     defuzzified_value = defuzzification(inference_result)
     
     if defuzzified_value >= 50:
