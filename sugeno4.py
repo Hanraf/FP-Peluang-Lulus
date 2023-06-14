@@ -7,7 +7,7 @@ data = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus.xlsx'))
 
 # Definisi variabel
 sks = data['Total SKS']
-ipk = data['Nilai IP']
+ipk = data['Nilai IPK']
 kemungkinan_lulus = data['Kemungkinan Lulus']
 
 result = []
@@ -103,8 +103,28 @@ for x in range(len(data)):
         z = ((nilaiBL * 25) + (nilaiML * 50) + (nilaiL * 100)) / (nilaiBL + nilaiML + nilaiL)
     else:
         z = 0  # Atur nilai default jika denominasi nol
+
+    if z < 50 :
+        z = "Belum Lulus"
+    elif z == 50 :
+        z = "Mungkin Lulus"
+    elif z > 50 :
+        z = "Lulus"
+
     result.append([sks[x], ipk[x], z])
 
 # Menampilkan data dalam bentuk tabel
 headers = ['Total SKS', 'Nilai IP', 'Kemungkinan Lulus']
 print(tabulate(result, headers=headers, tablefmt='psql'))
+
+# Menghitung akurasi
+kemungkinan_lulus_sebenarnya = data['Kemungkinan Lulus']
+"""for i in range(len(result)):
+    if result[i][2] == "Mungkin Lulus":
+        result[i][2] = "Lulus" """
+prediksi = [row[2] for row in result]
+jumlah_benar = sum(prediksi == kemungkinan_lulus_sebenarnya)
+total_data = len(data)
+akurasi = jumlah_benar / total_data * 100
+
+print(f"Akurasi: {akurasi:.2f}%")
