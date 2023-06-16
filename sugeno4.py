@@ -4,6 +4,7 @@ from tabulate import tabulate
 
 # Membaca file Excel dengan data latih dan data uji
 data = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus.xlsx'))
+data2 = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus_sebenarnya.xlsx'))
 
 # Definisi variabel
 sks = data['Total SKS']
@@ -111,17 +112,17 @@ for x in range(len(data)):
     elif z > 50 :
         z = "Lulus"
 
-    result.append([sks[x], ipk[x], z])
+    result.append([sks[x], ipk[x], kemungkinan_lulus[x]])
 
 # Menampilkan data dalam bentuk tabel
 headers = ['Total SKS', 'Nilai IP', 'Kemungkinan Lulus']
 print(tabulate(result, headers=headers, tablefmt='psql'))
 
 # Menghitung akurasi
-kemungkinan_lulus_sebenarnya = data['Kemungkinan Lulus']
-"""for i in range(len(result)):
+kemungkinan_lulus_sebenarnya = data2['Kemungkinan Lulus']
+for i in range(len(result)):
     if result[i][2] == "Mungkin Lulus":
-        result[i][2] = "Lulus" """
+        result[i][2] = "Lulus" or "Belum Lulus"
 prediksi = [row[2] for row in result]
 jumlah_benar = sum(prediksi == kemungkinan_lulus_sebenarnya)
 total_data = len(data)
