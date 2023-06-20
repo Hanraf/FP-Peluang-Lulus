@@ -1,96 +1,92 @@
 import pandas as pd
 import os
-from sklearn.model_selection import train_test_split
+from tabulate import tabulate
 
-# Fungsi keanggotaan untuk indikator nilai
-def nilai(x):
-    if x >= 3.1 and x <= 4.0:
-        return 1.0
-    elif x >= 2.5 and x <= 3.0:
-        return 0.5
-    elif x <= 2.4:
-        return 0.0
+# Membaca file Excel dengan data latih dan data uji
+data = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus.xlsx'))
+data2 = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus_sebenarnya.xlsx'))
 
-# Fungsi keanggotaan untuk indikator pengambilan SKS
-def sks(x):
-    if x >= 20 and x <= 24:
-        return 1.0
-    elif x >= 16 and x < 20:
-        return 0.5
-    elif x <= 15:
-        return 0.0
-
-# Fungsi keanggotaan untuk indikator semester
-def semester(x):
-    if x >= 1 and x <= 3:
-        return 1.0
-    elif x >= 4 and x <= 6:
-        return 0.5
-    elif x > 6:
-        return 0.0
-
-# Fungsi inferensi menggunakan metode Sugeno
-def sugeno_inference(nilai_input, sks_input, semester_input):
-    rules = {
-        'Tepat waktu': max(min(nilai_input, sks_input, semester_input), 0.5),
-        'Tidak tepat waktu': max(min(nilai_input, sks_input, 1 - semester_input), 0.5)
-    }
-
-    return rules
-
-# Fungsi defuzzifikasi menggunakan metode weighted average
-def defuzzification(rules):
-    numerator = 0.0
-    denominator = 0.0
-
-    for key, value in rules.items():
-        if key == 'Tepat waktu':
-            numerator += value * 100
-        elif key == 'Tidak tepat waktu':
-            numerator += value * 0
-        denominator += value
-
-    if denominator != 0:
-        return numerator / denominator
-    else:
-        return 0
-
-# Fungsi untuk menghitung tingkat akurasi
-def compute_accuracy(predicted, actual):
-    return np.sum(predicted == actual) / len(actual)
-
-# Membaca file Excel
-data = pd.read_excel(os.path.join(os.path.dirname(__file__),'data_lulus.xlsx'))
-
-# Memperoleh kolom yang diperlukan
-total_sks = data['Total SKS']
-nilai_ip = data['Nilai IP']
-semester = data['Semester']
+# Definisi variabel
+sks = data['Total SKS']
+ipk = data['Nilai IPK']
 kemungkinan_lulus = data['Kemungkinan Lulus']
 
-# Konversi data keanggotaan fuzzy
-nilai_fuzzy = nilai(nilai_ip)
-sks_fuzzy = sks(total_sks)
-semester_fuzzy = semester(semester)
+result = []
+for x in range(len(data)):
+    # Fuzzyfikasi data
+    total_sks = sks[x]
+    nilai_ipk = ipk[x]
 
-# Split dataset menjadi training set dan test set
-nilai_train, nilai_test, lulus_train, lulus_test = train_test_split(nilai_fuzzy, kemungkinan_lulus, test_size=0.2, random_state=42)
-sks_train, sks_test, _, _ = train_test_split(sks_fuzzy, kemungkinan_lulus, test_size=0.2, random_state=42)
-semester_train, semester_test, _, _ = train_test_split(semester_fuzzy, kemungkinan_lulus, test_size=0.2, random_state=42)
+    # Definisi fungsi keanggotaan Total SKS
+    def kurang(x):
+        return max(0, 1 - (x - 48) / (72 - 48))
+    def hampir(x):
+        return max(0, (x - 48) / (72 - 48))
+    def aman(x):
+        return max(0, 1 - (x - 120) / (144 - 120))
 
-# Melakukan prediksi pada dataset uji
-predictions = []
-for i in range(len(nilai_test)):
-    inference_result = sugeno_inference(nilai_test[i], sks_test[i], semester_test[i])
-    defuzzified_value = defuzzification(inference_result)
-    
-    if defuzzified_value >= 50:
-        predictions.append(1)  # Lulus
+    # Definisi fungsi keanggotaan Nilai IPK
+    def kurang_ipk(x):
+        return max(0, 1 - (x - 2.1) / (2.4 - 2.1))
+    def cukup(x):
+        return max(0, (x - 2.1) / (2.4 - 2.1))
+    def berprestasi(x):
+        return max(0, 1 - (x - 2.7) / (3.0 - 2.7))
+
+    # Menentukan nilai keanggotaan untuk masing-masing fungsi keanggotaan
+    tingkatan_total_sks = [kurang(total_sks), hampir(total_sks), aman(total_sks)]
+    tingkat_ipk = [kurang_ipk(nilai_ipk), cukup(nilai_ipk), berprestasi(nilai_ipk)]
+
+    # Inferensi
+    # Definisi aturan-aturan fuzzy
+    rules = [
+        min(tingkatan_total_sks[0], tingkat_ipk[2]),  # R1: Total SKS "Kurang" dan Nilai IPK "Berprestasi"
+        min(tingkatan_total_sks[0], tingkat_ipk[1]),  # R2: Total SKS "Kurang" dan Nilai IPK "Cukup"
+        min(tingkatan_total_sks[0], tingkat_ipk[0]),  # R3: Total SKS "Kurang" dan Nilai IPK "Kurang"
+        min(tingkatan_total_sks[1], tingkat_ipk[2]),  # R4: Total SKS "Hampir" dan Nilai IPK "Berprestasi"
+        min(tingkatan_total_sks[1], tingkat_ipk[1]),  # R5: Total SKS "Hampir" dan Nilai IPK "Cukup"
+        min(tingkatan_total_sks[1], tingkat_ipk[0]),  # R6: Total SKS "Hampir" dan Nilai IPK "Kurang"
+        min(tingkatan_total_sks[2], tingkat_ipk[2]),  # R7: Total SKS "Aman" dan Nilai IPK "Berprestasi"
+        min(tingkatan_total_sks[2], tingkat_ipk[1]),  # R8: Total SKS "Aman" dan Nilai IPK "Cukup"
+        min(tingkatan_total_sks[2], tingkat_ipk[0])   # R9: Total SKS "Aman" dan Nilai IPK "Kurang"
+    ]
+
+    # Menentukan bobot konsekuen untuk masing-masing aturan fuzzy
+    bobot = [50, 50, 25, 75, 50, 0, 100, 75, 0]
+
+    # Menghitung nilai z menggunakan metode Sugeno
+    numerator = sum([rules[i] * bobot[i] for i in range(len(rules))])
+    denominator = sum(rules)
+    if denominator != 0:
+        z = numerator / denominator
     else:
-        predictions.append(0)  # Tidak lulus
+        z = 0
 
-predictions = np.array(predictions)
+    # Definisi label output
+    label = ["Belum Lulus", "Mungkin lulus", "Lulus"]
 
-# Menghitung tingkat akurasi dari dataset uji
-accuracy = compute_accuracy(predictions, lulus_test)
-print("Tingkat akurasi: {:.2f}%".format(accuracy * 100))
+    # Menentukan label keluaran berdasarkan nilai z
+    if z < 50 :
+        z_label = label[0]
+    elif z == 50 :
+        z_label = label[1]
+    elif z > 50 :
+        z_label = label[2]
+
+    result.append([total_sks, nilai_ipk, z_label])
+
+# Menampilkan data dalam bentuk tabel
+headers = ['Total SKS', 'Nilai IPK', 'Kemungkinan Lulus']
+print(tabulate(result, headers=headers, tablefmt='psql'))
+
+# Menghitung akurasi
+kemungkinan_lulus_sebenarnya = data2['Kemungkinan Lulus']
+for i in range(len(result)):
+    if result[i][2] == "Mungkin Lulus":
+        result[i][2] =  "Belum Lulus" or "Lulus"
+prediksi = [row[2] for row in result]
+jumlah_benar = sum(prediksi == kemungkinan_lulus_sebenarnya)
+total_data = len(data)
+akurasi = jumlah_benar / total_data * 100
+
+print(f"Akurasi: {akurasi:.2f}%")
