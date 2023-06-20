@@ -1,47 +1,130 @@
-import numpy as np
-import skfuzzy as fuzz
-from skfuzzy import control as ctrl
 import pandas as pd
+import os
+from tabulate import tabulate
 
-# Membaca data dari file Excel
-data = pd.read_excel('nama_file.xlsx')
+# Membaca file Excel dengan data latih dan data uji
+data = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus.xlsx'))
+data2 = pd.read_excel(os.path.join(os.path.dirname(__file__), 'data_lulus_sebenarnya.xlsx'))
 
-# Membuat variabel input
-nilai_ip = ctrl.Antecedent(np.arange(0, 4.1, 0.1), 'Nilai IP')
-total_sks = ctrl.Antecedent(np.arange(0, 151, 1), 'Total SKS')
+# Definisi variabel
+sks = data['Total SKS']
+ipk = data['Nilai IPK']
 
-# Membuat variabel output
-kemungkinan_lulus = ctrl.Consequent(np.arange(0, 101, 1), 'Kemungkinan Lulus')
+result = []
+for x in range(len(data)):
+    tingkatan_total_sks = [0, 0, 0, 0]
+    tingkat_ipk = [0, 0, 0, 0]
+    kurang = 0
+    hampir = 0
+    aman = 0
+    cukup = 0
+    berprestasi = 0
 
-# Definisi fungsi keanggotaan untuk variabel input dan output
-nilai_ip['kurang'] = fuzz.trapmf(nilai_ip.universe, [0, 0, 0, 2.1])
-nilai_ip['cukup'] = fuzz.trimf(nilai_ip.universe, [2.2, 2.5, 2.7])
-nilai_ip['berprestasi'] = fuzz.trapmf(nilai_ip.universe, [2.8, 3.5, 4, 4])
+    # Fuzzyfikasi data
+    if sks[x] <= 48:
+        kurang = 1
+        tingkatan_total_sks[0] = kurang
+    elif sks[x] > 48 and sks[x] <= 72:
+        kurang = (2.1 - sks[x]) / 0.3
+        hampir = (sks[x] - 2.1) / 0.3
+        tingkatan_total_sks[0] = kurang
+        tingkatan_total_sks[1] = hampir
+    elif sks[x] > 72 and sks[x] <= 120:
+        hampir = 1
+        tingkatan_total_sks[1] = hampir
+    elif sks[x] > 120 and sks[x] < 144:
+        hampir = (2.7 - sks[x]) / 0.3
+        aman = (sks[x] - 2.7) / 0.3
+        tingkatan_total_sks[1] = hampir
+        tingkatan_total_sks[2] = aman
+    elif sks[x] >= 144:
+        aman = 1
+        tingkatan_total_sks[2] = aman
 
-total_sks['kurang'] = fuzz.trapmf(total_sks.universe, [0, 0, 0, 48])
-total_sks['hampir'] = fuzz.trimf(total_sks.universe, [49, 72, 143])
-total_sks['aman'] = fuzz.trapmf(total_sks.universe, [144, 155, 170, 180])
+    if ipk[x] <= 2.1:
+        kurang = 1
+        tingkat_ipk[0] = kurang
+    elif ipk[x] > 2.1 and ipk[x] < 2.4:
+        kurang = (2.1 - ipk[x]) / 0.3
+        cukup = (ipk[x] - 2.1) / 0.3
+        tingkat_ipk[0] = kurang
+        tingkat_ipk[1] = cukup
+    elif ipk[x] > 2.4 and ipk[x] <= 2.7:
+        cukup = 1
+        tingkat_ipk[1] = cukup
+    elif ipk[x] > 2.7 and ipk[x] <= 3.0:
+        cukup = (2.7 - ipk[x]) / 0.3
+        berprestasi = (ipk[x] - 2.7) / 0.3
+        tingkat_ipk[1] = cukup
+        tingkat_ipk[2] = berprestasi
+    elif ipk[x] > 3.0 and ipk[x] <= 4.0:
+        berprestasi = 1
+        tingkat_ipk[2] = berprestasi
 
-kemungkinan_lulus['belum lulus'] = fuzz.trapmf(kemungkinan_lulus.universe, [0, 0, 30, 50])
-kemungkinan_lulus['mungkin lulus'] = fuzz.trimf(kemungkinan_lulus.universe, [30, 50, 70])
-kemungkinan_lulus['lulus'] = fuzz.trapmf(kemungkinan_lulus.universe, [50, 70, 100, 100])
+    # Inferensi
+    bl = []
+    if tingkatan_total_sks[0] == kurang and tingkat_ipk[2] == aman:
+        bl.append(min(tingkat_ipk[2], tingkatan_total_sks[0]))
+    if tingkatan_total_sks[0] == kurang and tingkat_ipk[1] == hampir:
+        bl.append(min(tingkat_ipk[1], tingkatan_total_sks[0]))
+    if bl:  # Cek apakah bl tidak kosong sebelum mencari nilai maksimum
+        nilaiBL = max(bl)
+    else:
+        nilaiBL = 0
 
-# Membuat aturan fuzzy
-rule1 = ctrl.Rule(nilai_ip['rendah'] | total_sks['rendah'], kemungkinan_lulus['rendah'])
-rule2 = ctrl.Rule(nilai_ip['sedang'], kemungkinan_lulus['sedang'])
-rule3 = ctrl.Rule(nilai_ip['tinggi'] & total_sks['tinggi'], kemungkinan_lulus['tinggi'])
+    ml = []
+    if tingkatan_total_sks[1] == hampir and tingkat_ipk[1] == cukup:
+        ml.append(min(tingkat_ipk[1], tingkatan_total_sks[1]))
+    if tingkatan_total_sks[0] == kurang and tingkat_ipk[2] == berprestasi:
+        ml.append(min(tingkat_ipk[2], tingkatan_total_sks[0]))
+    if tingkatan_total_sks[0] == kurang and tingkat_ipk[1] == cukup:
+        ml.append(min(tingkat_ipk[1], tingkatan_total_sks[0]))
+    if tingkatan_total_sks[0] == kurang and tingkat_ipk[0] == kurang:
+        ml.append(min(tingkat_ipk[0], tingkatan_total_sks[0]))
+    if ml:  # Cek apakah ml tidak kosong sebelum mencari nilai maksimum
+        nilaiML = max(ml)
+    else:
+        nilaiML = 0
 
-# Membuat sistem kontrol fuzzy
-kemungkinan_lulus_ctrl = ctrl.ControlSystem([rule1, rule2, rule3])
-kemungkinan_lulus_estimasi = ctrl.ControlSystemSimulation(kemungkinan_lulus_ctrl)
+    l = []
+    if tingkatan_total_sks[2] == aman and tingkat_ipk[2] == berprestasi:
+        l.append(min(tingkat_ipk[2], tingkatan_total_sks[2]))
+    if tingkatan_total_sks[2] == aman and tingkat_ipk[1] == cukup:
+        l.append(min(tingkat_ipk[1], tingkatan_total_sks[2]))
+    if tingkatan_total_sks[1] == hampir and tingkat_ipk[2] == berprestasi:
+        l.append(min(tingkat_ipk[2], tingkatan_total_sks[1]))
+    if l:  # Cek apakah l tidak kosong sebelum mencari nilai maksimum
+        nilaiL = max(l)
+    else:
+        nilaiL = 0
 
-# Memasukkan data dari dataset ke dalam sistem kontrol fuzzy
-for index, row in data.iterrows():
-    kemungkinan_lulus_estimasi.input['Nilai IP'] = row['Nilai IP']
-    kemungkinan_lulus_estimasi.input['Total SKS'] = row['Total SKS']
+    # Defuzzyfikasi
+    if (nilaiBL + nilaiML + nilaiL) != 0:  # Cek apakah denominasi tidak nol sebelum melakukan pembagian
+        z = ((nilaiBL * 25) + (nilaiML * 50) + (nilaiL * 100)) / (nilaiBL + nilaiML + nilaiL)
+    else:
+        z = 0  # Atur nilai default jika denominasi nol
 
-    # Melakukan perhitungan
-    kemungkinan_lulus_estimasi.compute()
+    if z < 50 :
+        z = "Belum Lulus"
+    elif z == 50 :
+        z = "Mungkin Lulus"
+    elif z > 50 :
+        z = "Lulus"
 
-    # Mendapatkan hasil output
-    print("Kemungkinan Lulus:", kemungkinan_lulus_estimasi.output['Kemungkinan Lulus'])
+    result.append([sks[x], ipk[x], z])
+
+# Menampilkan data dalam bentuk tabel
+headers = ['Total SKS', 'Nilai IP', 'Kemungkinan Lulus']
+print(tabulate(result, headers=headers, tablefmt='psql'))
+
+# Menghitung akurasi
+kemungkinan_lulus_sebenarnya = data2['Kemungkinan Lulus']
+for i in range(len(result)):
+    if result[i][2] == "Mungkin Lulus":
+        result[i][2] = "Lulus" or "Belum Lulus"
+prediksi = [row[2] for row in result]
+jumlah_benar = sum(prediksi == kemungkinan_lulus_sebenarnya)
+total_data = len(data)
+akurasi = jumlah_benar / total_data * 100
+
+print(f"Akurasi: {akurasi:.2f}%")
